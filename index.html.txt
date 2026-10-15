@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>테트리스</title>
+<style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0d0d16; font-family:'Malgun Gothic', sans-serif; }
+    #app { position:relative; width:100%; height:100%; display:flex; flex-direction:column; }
+    #top-bar {
+        display:flex; justify-content:space-around; padding: 8px 6px; background:#161622; flex-shrink:0;
+        color:#fff; font-size:12px; text-align:center;
+    }
+    .top-stat b { display:block; font-size:17px; color:#ffd76b; }
+    #main-area { flex:1; display:flex; justify-content:center; align-items:center; gap: 10px; padding: 6px 8px; overflow:hidden; min-height:0; }
+    #board-wrap { position:relative; height:100%; max-height:100%; aspect-ratio: 10/20; }
+    canvas#board { display:block; height:100%; width:100%; background:#000; border-radius:6px; border:2px solid #33334d; }
+    #side-panel { display:flex; flex-direction:column; gap:8px; width: 78px; flex-shrink:0; max-height:100%; overflow-y:auto; }
+    .mini-box { background:#161622; border:2px solid #33334d; border-radius:8px; padding:5px; text-align:center; flex-shrink:0; }
+    .mini-box span { font-size:9px; color:#9a94b8; display:block; margin-bottom:2px; }
+    canvas.mini-canvas { width:100%; height: 46px; }
+    #controls {
+        display:flex; justify-content:center; align-items:center; gap: 8px; padding: 8px 10px 14px; flex-shrink:0;
+        background:#161622;
+    }
+    .ctrl-btn {
+        width: 54px; height: 54px; border-radius: 14px; border:none; background:#2b2b40; color:#fff;
+        font-size: 22px; font-weight:bold; display:flex; align-items:center; justify-content:center;
+    }
+    .ctrl-btn:active { background:#5e35b1; }
+    #hold-btn { background:#3a2c54; font-size:12px; }
+    #hard-drop-btn { background:#ff8f00; }
+    .spacer { flex:1; max-width: 14px; }
+    #overlay {
+        display:none; position:absolute; top:0; left:0; width:100%; height:100%;
+        background:rgba(5,5,10,0.94); z-index:20; flex-direction:column; justify-content:center; align-items:center; padding: 20px; text-align:center;
+    }
+    #overlay.active { display:flex; }
+    #overlay h1 { font-size: 28px; color:#ffd76b; margin-bottom:8px; }
+    #overlay p { color:#9a94b8; margin-bottom: 12px; font-size:13px; line-height:1.5; }
+    
+    .leaderboard {
+        background: #161622;
+        border: 2px solid #33334d;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin: 10px 0 16px;
+        width: 100%;
+        max-width: 280px;
+        text-align: left;
+    }
+    .leaderboard h3 { margin: 0 0 8px 0; font-size: 13px; color: #ffd76b; text-align: center; }
+    .leaderboard ol { margin: 0; padding-left: 20px; font-size: 12px; color: #f0e6ff; }
+    .leaderboard li { margin-bottom: 4px; }
+    .leaderboard li.new-record { color: #4dff88; font-weight: bold; }
+    
+    .big-btn { background:linear-gradient(135deg,#7c4dff,#5e35b1); color:#fff; border:none; border-radius:30px; padding:15px 40px; font-size:17px; font-weight:bold; }
+    .big-btn:active { transform:scale(0.96); }
+    #quiz-overlay {
+        display:none; position:absolute; top:0; left:0; width:100%; height:100%;
+        background:rgba(5,5,10,0.94); z-index:25; flex-direction:column; justify-content:center; align-items:center; padding: 18px;
+    }
+    #quiz-overlay.active { display:flex; }
+    .quiz-box { width:100%; max-width:420px; background:#161622; border:2px solid #4a3a70; border-radius:14px; padding:20px; text-align:center; }
+    .quiz-box h2 { margin-top:0; color:#ffd76b; font-size:18px; }
+    #quiz-question { font-size:14px; line-height:1.6; color:#f0e6ff; margin-bottom:14px; }
+    .quiz-opt { display:block; width:100%; padding:12px; margin:7px 0; border-radius:8px; border:2px solid #33334d; background:#22223a; color:#f0e6ff; font-size:13px; font-weight:bold; }
+    .quiz-opt:active:not(:disabled) { background:#5e35b1; }
+    .quiz-opt.correct { background:#4dff88 !important; color:#08260f; border-color:#4dff88; }
+    .quiz-opt.wrong { background:#ff4d4d !important; border-color:#ff4d4d; }
+    #quiz-feedback { font-weight:bold; margin:10px 0; min-height:20px; font-size:13px; }
+    #shop-btn { background:#3a2c54; }
+    #shop-overlay {
+        display:none; position:absolute; top:0; left:0; width:100%; height:100%;
+        background:rgba(5,5,10,0.94); z-index:25; flex-direction:column; justify-content:center; align-items:center; padding: 18px;
+    }
+    #shop-overlay.active { display:flex; }
+    .shop-box { width:100%; max-width:420px; background:#161622; border:2px solid #4a3a70; border-radius:14px; padding:20px; text-align:center; }
+    .shop-box h2 { margin-top:0; color:#ffd76b; font-size:18px; }
+    .shop-coin-display { font-size:15px; color:#ffd76b; font-weight:bold; margin-bottom:14px; }
+    .shop-row { display:flex; justify-content:space-between; align-items:center; background:#22223a; border-radius:10px; padding:10px 12px; margin-bottom:10px; text-align:left; }
+    .shop-row-info b { font-size:13px; display:block; color:#f0e6ff; }
+    .shop-row-info span { font-size:11px; color:#9a94b8; }
+    .shop-buy-btn { background:#4dff88; color:#08260f; border:none; border-radius:8px; padding:9px 14px; font-weight:bold; font-size:13px; flex-shrink:0; margin-left:8px; }
+    .shop-buy-btn:disabled { background:#555569; color:#9a94b8; }
+    .item-box { position:relative; cursor:pointer; }
+    .item-box .item-emoji { font-size: 22px; }
+    .item-badge {
+        position:absolute; top:-6px; right:-6px; min-width:20px; height:20px; border-radius:10px;
+        background:#ff8f00; color:#fff; font-size:11px; font-weight:bold; display:flex;
+        align-items:center; justify-content:center; padding:0 4px; border:2px solid #161622;
+    }
+    .item-box.empty { opacity: 0.35; cursor:not-allowed; }
+    .item-box:active:not(.empty) { background:#5e35b1; }
+</style>
+</head>
+<body>
+<div id="app">
+    <div id="top-bar">
+        <div class="top-stat">SCORE<b id="score-txt">0</b></div>
+        <div class="top-stat">LEVEL<b id="level-txt">1</b></div>
+        <div class="top-stat">LINES<b id="lines-txt">0</b></div>
+        <div class="top-stat">💎 COIN<b id="coin-txt">0</b></div>
+        <div class="top-stat">🔬 QUIZ<b id="quiz-progress-txt">3줄</b></div>
+    </div>
+    <div id="main-area">
+        <div id="side-panel">
+            <div class="mini-box"><span>HOLD</span><canvas class="mini-canvas" id="hold-canvas"></canvas></div>
+            <div class="mini-box"><span>NEXT</span><canvas class="mini-canvas" id="next-canvas"></canvas></div>
+            <div class="mini-box item-box empty" id="item-box-clearLine" ontouchstart="event.preventDefault(); useItem('clearLine');" onclick="useItem('clearLine')">
+                <span>줄삭제</span><div class="item-emoji">✨</div><div class="item-badge" id="item-count-clearLine">0</div>
+            </div>
+            <div class="mini-box item-box empty" id="item-box-summonI" ontouchstart="event.preventDefault(); useItem('summonI');" onclick="useItem('summonI')">
+                <span>막대소환</span><div class="item-emoji">📏</div><div class="item-badge" id="item-count-summonI">0</div>
+            </div>
+            <div class="mini-box item-box empty" id="item-box-slowDown" ontouchstart="event.preventDefault(); useItem('slowDown');" onclick="useItem('slowDown')">
+                <span>속도늦춤</span><div class="item-emoji">🐢</div><div class="item-badge" id="item-count-slowDown">0</div>
+            </div>
+        </div>
+        <div id="board-wrap"><canvas id="board"></canvas></div>
+    </div>
+    <div id="controls">
+        <button class="ctrl-btn" id="hold-btn" ontouchstart="event.preventDefault(); doHold();" onclick="doHold();">HOLD</button>
+        <button class="ctrl-btn" ontouchstart="event.preventDefault(); moveLeft();" onclick="moveLeft();">◀</button>
+        <button class="ctrl-btn" ontouchstart="event.preventDefault(); rotatePiece();" onclick="rotatePiece();">⟳</button>
+        <button class="ctrl-btn" ontouchstart="event.preventDefault(); moveRight();" onclick="moveRight();">▶</button>
+        <div class="spacer"></div>
+        <button class="ctrl-btn" ontouchstart="event.preventDefault(); softDrop();" onclick="softDrop();">▼</button>
+        <button class="ctrl-btn" id="hard-drop-btn" ontouchstart="event.preventDefault(); hardDrop();" onclick="hardDrop();">⤓</button>
+        <div class="spacer"></div>
+        <button class="ctrl-btn" id="shop-btn" ontouchstart="event.preventDefault(); openShop();" onclick="openShop();">🏪</button>
+    </div>
+    <div id="overlay" class="active">
+        <h1 id="overlay-title">🧱 테트리스</h1>
+        <p id="overlay-desc">블록을 쌓고 줄을 채워 없애보세요!<br>◀▶로 이동, ⟳로 회전, ▼소프트드롭, ⤓하드드롭, HOLD로 보관<br><br>🔬 3줄을 지우거나 20~40초 경과 시 과학 퀴즈 등장! (오답 시 방해 줄 추가)<br>💎 줄 제거 10코인 · 퀴즈 정답 30코인 → 🏪 상점에서 아이템 구매<br>구매한 아이템은 옆 칸에 쌓아뒀다가 원할 때 탭해서 사용하세요!<br>⏱ 40초마다 낙하 속도가 점점 빨라집니다.</p>
+        <button class="big-btn" onclick="startGame()">시작하기</button>
+    </div>
+    <div id="quiz-overlay">
+        <div class="quiz-box">
+            <h2>🔬 보너스 퀴즈!</h2>
+            <div id="quiz-question"></div>
+            <div id="quiz-options"></div>
+            <div id="quiz-feedback"></div>
+            <button class="big-btn" id="quiz-continue-btn" style="display:none; padding:12px 30px; font-size:14px;" onclick="afterQuiz()">계속하기</button>
+        </div>
+    </div>
+    <div id="shop-overlay">
+        <div class="shop-box">
+            <h2>🏪 아이템 상점</h2>
+            <div class="shop-coin-display">💎 보유 코인: <span id="shop-coin-txt">0</span></div>
+            <div id="shop-list"></div>
+            <button class="big-btn" style="padding:12px 30px; font-size:14px; margin-top:6px;" onclick="closeShop()">닫기</button>
+        </div>
+    </div>
+</div>
+<script>
+const COLS = 10, ROWS = 20;
+const boardCanvas = document.getElementById('board');
+const bctx = boardCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const hctx = holdCanvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nctx = nextCanvas.getContext('2d');
+let cellSize;
+function resizeCanvases() {
+    const wrap = document.getElementById('board-wrap');
+    boardCanvas.width = wrap.clientWidth;
+    boardCanvas.height = wrap.clientHeight;
+    cellSize = boardCanvas.width / COLS;
+    holdCanvas.width = holdCanvas.clientWidth; holdCanvas.height = holdCanvas.clientHeight;
+    nextCanvas.width = nextCanvas.clientWidth; nextCanvas.height = nextCanvas.clientHeight;
+}window.addEventListener('resize', resizeCanvases);
+
+// ---------- 테트로미노 정의 ----------
+const SHAPES = {
+    I: { color:'#4dd9ff', cells:[[0,1],[1,1],[2,1],[3,1]] },
+    O: { color:'#ffe14d', cells:[[1,0],[2,0],[1,1],[2,1]] },
+    T: { color:'#c94dff', cells:[[1,0],[0,1],[1,1],[2,1]] },
+    S: { color:'#4dff88', cells:[[1,0],[2,0],[0,1],[1,1]] },
+    Z: { color:'#ff4d4d', cells:[[0,0],[1,0],[1,1],[2,1]] },
+    J: { color:'#4d6bff', cells:[[0,0],[0,1],[1,1],[2,1]] },
+    L: { color:'#ff9d4d', cells:[[2,0],[0,1],[1,1],[2,1]] },
+};
+const SHAPE_KEYS = Object.keys(SHAPES);
+const I_SKIP_CHANCE = 0.5;
+
+function newBag() {
+    let bag = [...SHAPE_KEYS];
+    if (Math.random() < I_SKIP_CHANCE) {
+        bag = bag.filter(k => k !== 'I');
+    }
+    for (let i=bag.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [bag[i],bag[j]]=[bag[j],bag[i]]; }
+    return bag;
+}
+
+// ---------- 퀴즈 데이터 ----------
+const QUIZ_BANK = [
+    { q: "태양의 높이를 태양이 지표면과 이루는 각으로 나타낸 것은?", opts: ["태양고도", "태양열", "남중고도", "계절의 변화"], answer: 0 },
+    { q: "태양 고도가 높아지면 그림자 길이는 어떻게 될까요?", opts: ["길어진다.", "짧아진다.", "변화없다.", "계절마다 다르다."], answer: 1 },
+    { q: "태양의 남중고도에 관한 설명으로 가장 옳은 것은?", opts: ["태양의 남중고도가 높아지면 낮의 길이는 짧아진다.", "태양의 남중고도는 겨울에 가장 높다.", "태양의 남중고도가 낮아지면 낮의 길이가 짧아진다.", "여름에서 가을로 갈 때 태양남중고도가 높아진다."], answer: 2 },
+    { q: "계절의 변화가 생기는 까닭으로 가장 알맞은 것은?", opts: ["지구가 자전하기 때문", "지구의 자전축이 기울어진 채 공전하기 때문", "태양이 지구를 공전하기 때문", "달이 지구를 공전하기 때문"], answer: 1 },
+    { q: "사계절 중 태양의 남중 고도가 가장 높은 계절은?", opts: ["봄", "여름", "가을", "겨울"], answer: 1 },
+    { q: "서로 다른 물질이 섞였을 때 물질의 성질이 변하는 것은?", opts: ["계란+소금", "우유+코코아가루", "식초+우유", "꿀+물"], answer: 2 },
+    { q: "물질이 탈 때 나타나는 공통적인 현상은?", opts: ["산소 발생", "전기 발생", "물과 이산화탄소 흡수", "빛과 열 발생"], answer: 3 },
+    { q: "물질이 타기 위해 필요한 요소가 아닌 것은?", opts: ["물", "산소", "탈물질", "발화점 이상의 온도"], answer: 0 },
+    { q: "물질이 산소와 만나 빛과 열을 내는 것을 무엇이라고 하나요?", opts: ["염기", "소화", "연소", "산화"], answer: 2 },
+    { q: "양초가 연소된 후 생성되는 물질은?", opts: ["빛과 산소", "이산화탄소와 산소", "산소와 물", "물과 이산화탄소"], answer: 3 },
+    { q: "연소 생성물 중 생태계에 피해를 주는 물질은?", opts: ["산소", "이산화탄소", "물", "빛"], answer: 1 },
+    { q: "연소 생성물로 인한 생태계 피해 사례가 아닌 것은?", opts: ["조개껍질이 얇아짐", "북극곰이 살곳을 잃음", "자전거를 많이 탐", "산호초가 하얗게 변함"], answer: 2 },
+    { q: "물질이 탈 때 발생하는 '열'을 이용하는 사례가 아닌 것은?", opts: ["벽난로를 피워 난방", "아궁이 불로 온돌", "가스레인지 불로 요리", "생일케이크의 생일 촛불"], answer: 3 },
+    { q: "다음 중 발화점이 가장 높은 물질은?", opts: ["성냥 머리", "성냥 나무 부분", "흰 종이", "쇠젓가락"], answer: 3 },
+    { q: "나무막대기를 빠르게 비비는 행동은 연소의 조건 중 무엇을 위한 것일까요?", opts: ["발화점 이상의 온도", "탈 물질", "이산화탄소", "산소"], answer: 0 }
+];
+const QUIZ_LINE_THRESHOLD = 3;
+let linesSinceQuiz = 0;
+let currentQuiz = null;
+let shuffledQuizBank = [];
+let currentQuizIndex = 0;
+
+// 랜덤 시간 퀴즈용 변수
+let quizTimerMs = 0;
+let nextQuizTimeMs = 0;
+
+function resetQuizTimer() {
+    quizTimerMs = 0;
+    // 20초 ~ 40초 (20000ms ~ 40000ms) 사이 랜덤 설정
+    nextQuizTimeMs = Math.floor(Math.random() * 20000) + 20000;
+}
+
+// ---------- 코인 & 상점 ----------
+const COIN_PER_LINE = 5;
+const COIN_PER_QUIZ = 30;
+const SHOP_ITEMS = [
+    { id:'clearLine', name:'✨ 한 줄 없애기', cost:50, desc:'구매 후 보관, 원할 때 사용하면 가장 꽉 찬 줄 하나를 즉시 제거합니다.' },
+    { id:'summonI', name:'📏 막대기 블록 소환', cost:50, desc:'구매 후 보관, 원할 때 사용하면 다음 블록이 막대기(I) 블록으로 확정됩니다.' },
+    { id:'slowDown', name:'🐢 속도 늦추기', cost:50, desc:'구매 후 보관, 원할 때 사용하면 15초 동안 낙하 속도가 느려집니다.' },
+];
+let coins = 0;
+let inventory = { clearLine: 0, summonI: 0, slowDown: 0 };
+let elapsedPlayMs = 0;
+const TIME_BOOST_INTERVAL = 30000;
+let timeBoostLevel = 0;
+let slowEndMs = -1;
+
+// ---------- 상태 ----------
+let grid, current, bag, holdPiece, canHold, score, level, lines, gameOver, running;
+let dropInterval, dropTimer, lastTime;
+
+function createPiece(key) {
+    const shape = SHAPES[key];
+    return {
+        key,
+        color: shape.color,
+        cells: shape.cells.map(c => [...c]),
+        x: 3, y: -1,
+    };
+}
+
+function resetGame() {
+    grid = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+    bag = newBag();
+    current = createPiece(bag.shift());
+    holdPiece = null; canHold = true;
+    score = 0; level = 1; lines = 0; gameOver = false;
+    linesSinceQuiz = 0;
+    coins = 0; elapsedPlayMs = 0; timeBoostLevel = 0; slowEndMs = -1;
+    inventory = { clearLine: 0, summonI: 0, slowDown: 0 };
+    dropInterval = 800; dropTimer = 0; lastTime = performance.now();
+    
+    // 퀴즈 타이머 초기화
+    resetQuizTimer();
+
+    // 게임을 다시 시작할 때마다 퀴즈 배열을 무작위로 섞음
+    shuffledQuizBank = [...QUIZ_BANK];
+    for (let i = shuffledQuizBank.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledQuizBank[i], shuffledQuizBank[j]] = [shuffledQuizBank[j], shuffledQuizBank[i]];
+    }
+    currentQuizIndex = 0;
+
+    refillBagIfNeeded();
+    updateHud();
+    updateInventoryUI();
+    drawHold(); drawNext();
+}
+
+function refillBagIfNeeded() {
+    if (bag.length < 4) bag.push(...newBag());
+}
+
+function updateHud() {
+    document.getElementById('score-txt').innerText = score;
+    document.getElementById('level-txt').innerText = level;
+    document.getElementById('lines-txt').innerText = lines;
+    document.getElementById('coin-txt').innerText = coins;
+    document.getElementById('quiz-progress-txt').innerText = Math.max(0, QUIZ_LINE_THRESHOLD - linesSinceQuiz) + '줄';
+}
+
+// ---------- 충돌/이동 ----------
+function collides(piece, offX, offY, cells) {
+    const useCells = cells || piece.cells;
+    for (const [cx, cy] of useCells) {
+        const gx = piece.x + cx + offX;
+        const gy = piece.y + cy + offY;
+        if (gx < 0 || gx >= COLS || gy >= ROWS) return true;
+        if (gy >= 0 && grid[gy][gx]) return true;
+    }
+    return false;
+}
+
+function moveLeft() { if (!running) return; if (!collides(current, -1, 0)) current.x--; draw(); }
+function moveRight() { if (!running) return; if (!collides(current, 1, 0)) current.x++; draw(); }
+function softDrop() { if (!running) return; if (!collides(current, 0, 1)) { current.y++; score += 1; updateHud(); } else lockPiece(); draw(); }
+function hardDrop() {
+    if (!running) return;
+    let dist = 0;
+    while (!collides(current, 0, dist+1)) dist++;
+    current.y += dist;
+    score += dist * 2;
+    updateHud();
+    lockPiece();
+    draw();
+}
+
+function rotatePiece() {
+    if (!running) return;
+    if (current.key === 'O') return;
+    const pivot = current.cells[ current.key === 'I' ? 1 : 2 ] || current.cells[1];
+    const rotated = current.cells.map(([cx, cy]) => {
+        const rx = pivot[0] - (cy - pivot[1]);
+        const ry = pivot[1] + (cx - pivot[0]);
+        return [rx, ry];
+    });
+    const kicks = [0, -1, 1, -2, 2];
+    for (const k of kicks) {
+        if (!collides(current, k, 0, rotated)) {
+            current.cells = rotated;
+            current.x += k;
+            draw();
+            return;
+        }
+    }
+}
+
+function doHold() {
+    if (!running || !canHold) return;
+    if (holdPiece === null) {
+        holdPiece = current.key;
+        spawnNext();
+    } else {
+        const tmp = holdPiece;
+        holdPiece = current.key;
+        current = createPiece(tmp);
+    }
+    canHold = false;
+    drawHold();
+    draw();
+}
+
+function spawnNext() {
+    refillBagIfNeeded();
+    current = createPiece(bag.shift());
+    canHold = true;
+    if (collides(current, 0, 0)) {
+        triggerGameOver();
+    }
+    drawNext();
+}
+
+function lockPiece() {
+    for (const [cx, cy] of current.cells) {
+        const gx = current.x + cx, gy = current.y + cy;
+        if (gy < 0) { triggerGameOver(); return; }
+        grid[gy][gx] = current.color;
+    }
+    clearLines();
+    spawnNext();
+}
+
+function clearLines() {
+    let cleared = 0;
+    for (let y = ROWS - 1; y >= 0; y--) {
+        if (grid[y].every(c => c !== null)) {
+            grid.splice(y, 1);
+            grid.unshift(Array(COLS).fill(null));
+            cleared++;
+            y++;
+        }
+    }
+    if (cleared > 0) {
+        const points = [0, 100, 300, 500, 800][cleared] * level;
+        score += points;
+        lines += cleared;
+        coins += cleared * COIN_PER_LINE;
+        const newLevel = Math.floor(lines / 10) + 1;
+        if (newLevel !== level) {
+            level = newLevel;
+            dropInterval = Math.max(120, 800 - (level - 1) * 65);
+        }
+        linesSinceQuiz += cleared;
+        updateHud();
+        if (linesSinceQuiz >= QUIZ_LINE_THRESHOLD) {
+            triggerQuiz();
+        }
+    }
+}
+
+// ---------- 퀴즈 ----------
+function triggerQuiz() {
+    running = false;
+    
+    // 섞인 퀴즈 목록에서 순서대로 하나씩 출제
+    if (currentQuizIndex >= shuffledQuizBank.length) {
+        for (let i = shuffledQuizBank.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledQuizBank[i], shuffledQuizBank[j]] = [shuffledQuizBank[j], shuffledQuizBank[i]];
+        }
+        currentQuizIndex = 0;
+    }
+    currentQuiz = shuffledQuizBank[currentQuizIndex++];
+
+    document.getElementById('quiz-question').innerText = currentQuiz.q;
+    document.getElementById('quiz-feedback').innerText = '';
+    document.getElementById('quiz-continue-btn').style.display = 'none';
+    const optDiv = document.getElementById('quiz-options');
+    optDiv.innerHTML = '';
+    currentQuiz.opts.forEach((opt, i) => {
+        const b = document.createElement('button');
+        b.className = 'quiz-opt';
+        b.innerText = opt;
+        b.onclick = () => answerQuiz(i);
+        optDiv.appendChild(b);
+    });
+    document.getElementById('quiz-overlay').classList.add('active');
+}
+
+function answerQuiz(i) {
+    const correct = i === currentQuiz.answer;
+    document.querySelectorAll('.quiz-opt').forEach((b, idx) => {
+        b.disabled = true;
+        if (idx === currentQuiz.answer) b.classList.add('correct');
+        else if (idx === i && !correct) b.classList.add('wrong');
+    });
+    const fb = document.getElementById('quiz-feedback');
+    if (correct) {
+        coins += COIN_PER_QUIZ;
+        fb.innerHTML = `<span style="color:#4dff88;">⭕ 정답! +${COIN_PER_QUIZ}코인 획득!</span>`;
+    } else {
+        addGarbageRow();
+        fb.innerHTML = `<span style="color:#ff4d4d;">❌ 오답! 쓰레기 줄이 추가됩니다.</span>`;
+    }
+    updateHud();
+    document.getElementById('quiz-continue-btn').style.display = 'inline-block';
+}
+
+function afterQuiz() {
+    document.getElementById('quiz-overlay').classList.remove('active');
+    linesSinceQuiz = 0;
+    resetQuizTimer(); // 퀴즈 종료 시 랜덤 시간 타이머 리셋
+    updateHud();
+    if (!gameOver) {
+        running = true;
+        lastTime = performance.now();
+        requestAnimationFrame(loop);
+    }
+    draw();
+}
+
+function removeBestRow() {
+    let bestIdx = -1, bestCount = -1;
+    for (let y = 0; y < ROWS; y++) {
+        const count = grid[y].filter(c => c !== null).length;
+        if (count > 0 && count < COLS && count > bestCount) { bestCount = count; bestIdx = y; }
+    }
+    if (bestIdx === -1) return;
+    grid.splice(bestIdx, 1);
+    grid.unshift(Array(COLS).fill(null));
+}
+
+function addGarbageRow() {
+    grid.shift();
+    const gapCol = Math.floor(Math.random() * COLS);
+    const newRow = Array(COLS).fill('#555569');
+    newRow[gapCol] = null;
+    grid.push(newRow);
+    if (collides(current, 0, 0)) triggerGameOver();
+}
+
+// ---------- 상점 ----------
+function openShop() {
+    if (gameOver || !current) return;
+    running = false;
+    renderShop();
+    document.getElementById('shop-overlay').classList.add('active');
+}
+
+function closeShop() {
+    document.getElementById('shop-overlay').classList.remove('active');
+    if (!gameOver) {
+        running = true;
+        lastTime = performance.now();
+        requestAnimationFrame(loop);
+    }
+    draw();
+}
+
+function renderShop() {
+    document.getElementById('shop-coin-txt').innerText = coins;
+    const list = document.getElementById('shop-list');
+    list.innerHTML = '';
+    SHOP_ITEMS.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'shop-row';
+        row.innerHTML = `<div class="shop-row-info"><b>${item.name} (${item.cost}💎)</b><span>${item.desc}</span></div>`;
+        const btn = document.createElement('button');
+        btn.className = 'shop-buy-btn';
+        btn.innerText = '구매';
+        btn.disabled = coins < item.cost;
+        btn.onclick = () => buyItem(item.id);
+        row.appendChild(btn);
+        list.appendChild(row);
+    });
+}
+
+function buyItem(id) {
+    const item = SHOP_ITEMS.find(i => i.id === id);
+    if (!item || coins < item.cost) return;
+    coins -= item.cost;
+    inventory[id] = (inventory[id] || 0) + 1;
+    updateHud();
+    updateInventoryUI();
+    renderShop();
+}
+
+function updateInventoryUI() {
+    SHOP_ITEMS.forEach(item => {
+        const count = inventory[item.id] || 0;
+        document.getElementById('item-count-' + item.id).innerText = count;
+        const box = document.getElementById('item-box-' + item.id);
+        if (count > 0) box.classList.remove('empty'); else box.classList.add('empty');
+    });
+}
+
+function useItem(id) {
+    if (!running || gameOver) return;
+    if (!inventory[id] || inventory[id] <= 0) return;
+    inventory[id]--;
+    if (id === 'clearLine') {
+        removeBestRow();
+    } else if (id === 'summonI') {
+        bag.unshift('I');
+        drawNext();
+    } else if (id === 'slowDown') {
+        slowEndMs = elapsedPlayMs + 15000;
+    }
+    updateInventoryUI();
+    updateHud();
+    draw();
+}
+
+// ---------- 리더보드 (로컬 스토리지) ----------
+function updateLeaderboard(newScore, newLines) {
+    let board = JSON.parse(localStorage.getItem('tetris_scores') || '[]');
+    
+    const currentRecord = { score: newScore, lines: newLines };
+    board.push(currentRecord);
+    
+    board.sort((a, b) => b.score - a.score);
+    board = board.slice(0, 5);
+    
+    localStorage.setItem('tetris_scores', JSON.stringify(board));
+    
+    let html = '<div class="leaderboard"><h3>🏆 TOP 5 스코어</h3><ol>';
+    board.forEach((item) => {
+        const isCurrent = (item === currentRecord);
+        html += `<li class="${isCurrent ? 'new-record' : ''}">${item.score}점 (${item.lines}줄)</li>`;
+    });
+    html += '</ol></div>';
+    
+    return html;
+}
+
+function triggerGameOver() {
+    gameOver = true; running = false;
+    
+    const leaderboardHtml = updateLeaderboard(score, lines);
+    
+    document.getElementById('overlay-title').innerText = '💥 게임 오버';
+    document.getElementById('overlay-desc').innerHTML = 
+        `최종 점수: <b style="color:#ffd76b; font-size:16px;">${score}</b>점 · <b style="color:#4dd9ff;">${lines}</b>줄 제거<br>` + leaderboardHtml;
+    document.querySelector('.big-btn').innerText = '🔄 다시 시작';
+    document.getElementById('overlay').classList.add('active');
+}
+
+function startGame() {
+    document.getElementById('overlay').classList.remove('active');
+    resizeCanvases();
+    resetGame();
+    running = true;
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+}
+
+// ---------- 그리기 ----------
+function drawCell(ctx, x, y, size, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = Math.max(1, size*0.05);
+    ctx.strokeRect(x+1, y+1, size-2, size-2);
+}
+
+function draw() {
+    bctx.clearRect(0,0,boardCanvas.width, boardCanvas.height);
+    for (let y=0;y<ROWS;y++) {
+        for (let x=0;x<COLS;x++) {
+            if (grid[y][x]) drawCell(bctx, x*cellSize, y*cellSize, cellSize, grid[y][x]);
+        }
+    }
+    let ghostY = 0;
+    while (!collides(current, 0, ghostY+1)) ghostY++;
+    bctx.globalAlpha = 0.25;
+    current.cells.forEach(([cx,cy]) => {
+        const gx = current.x+cx, gy = current.y+cy+ghostY;
+        if (gy >= 0) drawCell(bctx, gx*cellSize, gy*cellSize, cellSize, current.color);
+    });
+    bctx.globalAlpha = 1;
+    current.cells.forEach(([cx,cy]) => {
+        const gx = current.x+cx, gy = current.y+cy;
+        if (gy >= 0) drawCell(bctx, gx*cellSize, gy*cellSize, cellSize, current.color);
+    });
+    bctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    for (let x=0;x<=COLS;x++) { bctx.beginPath(); bctx.moveTo(x*cellSize,0); bctx.lineTo(x*cellSize,boardCanvas.height); bctx.stroke(); }
+    for (let y=0;y<=ROWS;y++) { bctx.beginPath(); bctx.moveTo(0,y*cellSize); bctx.lineTo(boardCanvas.width,y*cellSize); bctx.stroke(); }
+}
+
+function drawMiniPiece(ctx, key) {
+    ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+    if (!key) return;
+    const shape = SHAPES[key];
+    const size = Math.min(ctx.canvas.width, ctx.canvas.height) / 4.4;
+    const xs = shape.cells.map(c=>c[0]), ys = shape.cells.map(c=>c[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const w = (maxX-minX+1)*size, h = (maxY-minY+1)*size;
+    const offX = (ctx.canvas.width - w)/2 - minX*size;
+    const offY = (ctx.canvas.height - h)/2 - minY*size;
+    shape.cells.forEach(([cx,cy]) => drawCell(ctx, offX+cx*size, offY+cy*size, size, shape.color));
+}
+
+function drawHold() { drawMiniPiece(hctx, holdPiece); }
+function drawNext() { drawMiniPiece(nctx, bag[0]); }
+
+// ---------- 루프 ----------
+function loop(t) {
+    if (!running) return;
+    const dt = t - lastTime;
+    lastTime = t;
+    dropTimer += dt;
+    elapsedPlayMs += dt;
+    
+    // 퀴즈용 시간 누적 및 체크
+    quizTimerMs += dt;
+    if (quizTimerMs >= nextQuizTimeMs) {
+        triggerQuiz();
+        return; // 퀴즈 호출 시 일시 정지되므로 함수 종료
+    }
+
+    timeBoostLevel = Math.floor(elapsedPlayMs / TIME_BOOST_INTERVAL);
+    let effInterval = dropInterval - timeBoostLevel * 40;
+    if (elapsedPlayMs < slowEndMs) effInterval *= 1.6;
+    effInterval = Math.max(90, effInterval);
+    if (dropTimer > effInterval) {
+        dropTimer = 0;
+        if (!collides(current, 0, 1)) current.y++;
+        else lockPiece();
+    }
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// ---------- 스와이프 입력 ----------
+let touchStartX=null, touchStartY=null, touchMoved=false;
+boardCanvas.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; touchStartX=t.clientX; touchStartY=t.clientY; touchMoved=false; }, {passive:true});
+boardCanvas.addEventListener('touchmove', (e)=>{
+    if (touchStartX===null) return;
+    const t = e.touches[0];
+    const dx = t.clientX-touchStartX, dy = t.clientY-touchStartY;
+    if (Math.abs(dx) > cellSize*0.8) {
+        if (dx > 0) moveRight(); else moveLeft();
+        touchStartX = t.clientX; touchMoved = true;
+    } else if (dy > cellSize*0.9) {
+        softDrop();
+        touchStartY = t.clientY; touchMoved = true;
+    }
+    e.preventDefault();
+}, {passive:false});
+boardCanvas.addEventListener('touchend', ()=>{ if (!touchMoved) rotatePiece(); touchStartX=null; touchStartY=null; });
+
+// ---------- 키보드 ----------
+document.addEventListener('keydown', (e) => {
+    if (!running) return;
+    if (e.key === 'ArrowLeft') moveLeft();
+    else if (e.key === 'ArrowRight') moveRight();
+    else if (e.key === 'ArrowDown') softDrop();
+    else if (e.key === 'ArrowUp') rotatePiece();
+    else if (e.code === 'Space') hardDrop();
+    else if (e.key === 'c' || e.key === 'C') doHold();
+});
+resizeCanvases();
+</script>
+</body>
+</html>
